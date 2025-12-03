@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <!-- Configuration pour le domaine API -->
+  <domain-config>
+    <domain includeSubdomains="true">localhost</domain>
+    <!-- En production, remplacer par le domaine réel -->
+    <!-- <domain includeSubdomains="true">api.securemessenger.example</domain> -->
+    
+    <!-- TODO: Générer et ajouter les hash SHA-256 des certificats serveur -->
+    <!-- Commande pour extraire le hash:
+         openssl x509 -in server.crt -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | base64
+    -->
+    <pin-set expiration="2026-12-31">
+      <!-- Primary certificate pin (à remplacer par le vrai hash) -->
+      <pin digest="SHA-256">AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</pin>
+      <!-- Backup certificate pin -->
+      <pin digest="SHA-256">BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=</pin>
+    </pin-set>
+  </domain-config>
+  
+  <!-- Autoriser le traffic debug en dev (à retirer en production) -->
+  <debug-overrides>
+    <trust-anchors>
+      <certificates src="system" />
+      <certificates src="user" />
+    </trust-anchors>
+  </debug-overrides>
+</network-security-config>

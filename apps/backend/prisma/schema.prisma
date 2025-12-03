@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DeviceType {
+  WEB
+  MOBILE
+  DESKTOP
+}
+
+enum ConversationType {
+  direct
+  group
+}
+
+enum ParticipantRole {
+  owner
+  admin
+  member
+}
+
+enum MessageType {
+  text
+  media
+  file
+  call
+  system
+}
+
+enum ReceiptStatus {
+  sent
+  delivered
+  read
+}
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  phone       String?  @unique @db.VarChar(20)
+  email       String?  @unique @db.VarChar(255)
+  username    String?  @unique @db.VarChar(50)
+  displayName String   @map("display_name") @db.VarChar(100)
+  avatarUrl   String?  @map("avatar_url") @db.Text
+  statusText  String?  @map("status_text") @db.VarChar(200)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  lastSeenAt  DateTime @default(now()) @map("last_seen_at") @db.Timestamptz
+
+  devices      Device[]
+  messages     Message[]
+  participants ConversationParticipant[]
+  contacts     Contact[]                 @relation("UserContacts")
+  contactOf    Contact[]                 @relation("ContactUser")
+
+  @@map("users")
+}
+
+model Device {
+  id           String     @id @default(uuid()) @db.Uuid
+  userId       String     @map("user_id") @db.Uuid
+  name         String     @db.VarChar(100)
+  type         DeviceType
+  identityKey  Bytes      @map("identity_key")
+  signedPreKey Bytes      @map("signed_pre_key")
+  signature    Bytes
+  lastSeen     DateTime   @default(now()) @map("last_seen") @db.Timestamptz
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  oneTimeKeys OneTimeKey[]
+
+  @@index([userId])
+  @@map("devices")
+}
+
+model OneTimeKey {
+  id       String @id @default(uuid()) @db.Uuid
+  key      Bytes
+  deviceId String @map("device_id") @db.Uuid
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("one_time_keys")
+}
+
+model Conversation {
+  id            String           @id @default(uuid()) @db.Uuid
+  type          ConversationType
+  name          String?          @db.VarChar(100)
+  avatarUrl     String?          @map("avatar_url") @db.Text
+  description   String?          @db.Text
+  createdBy     String           @map("created_by") @db.Uuid
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz
+  lastMessageAt DateTime         @default(now()) @map("last_message_at") @db.Timestamptz
+
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([type])
+  @@index([lastMessageAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  conversationId       String          @map("conversation_id") @db.Uuid
+  userId               String          @map("user_id") @db.Uuid
+  role                 ParticipantRole @default(member)
+  joinedAt             DateTime        @default(now()) @map("joined_at") @db.Timestamptz
+  leftAt               DateTime?       @map("left_at") @db.Timestamptz
+  lastReadMessageId    String?         @map("last_read_message_id") @db.Uuid
+  notificationsEnabled Boolean         @default(true) @map("notifications_enabled")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+  @@index([conversationId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id              String      @id @default(uuid()) @db.Uuid
+  conversationId  String      @map("conversation_id") @db.Uuid
+  senderId        String      @map("sender_id") @db.Uuid
+  senderDeviceId  String?     @map("sender_device_id") @db.Uuid
+  ciphertext      Bytes
+  type            MessageType @default(text)
+  replyToId       String?     @map("reply_to_id") @db.Uuid
+  mediaKeys       Json?       @map("media_keys")
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  editedAt        DateTime?   @map("edited_at") @db.Timestamptz
+  deletedAt       DateTime?   @map("deleted_at") @db.Timestamptz
+  expiresAt       DateTime?   @map("expires_at") @db.Timestamptz
+  idempotencyKey  String?     @unique @map("idempotency_key") @db.VarChar(100)
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation(fields: [senderId], references: [id])
+  replyTo      Message?     @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies      Message[]    @relation("MessageReplies")
+  receipts     MessageReceipt[]
+  reactions    MessageReaction[]
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([senderId])
+  @@index([replyToId])
+  @@map("messages")
+}
+
+model MessageReceipt {
+  messageId String        @map("message_id") @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  deviceId  String        @default(uuid()) @map("device_id") @db.Uuid
+  status    ReceiptStatus
+  timestamp DateTime      @default(now()) @db.Timestamptz
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId, deviceId])
+  @@index([messageId])
+  @@index([userId])
+  @@map("message_receipts")
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  messageId String   @map("message_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  emoji     String   @db.VarChar(10)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
+  @@map("message_reactions")
+}
+
+model GroupInvite {
+  id             String    @id @default(uuid()) @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  code           String    @unique @db.VarChar(32)
+  createdBy      String    @map("created_by") @db.Uuid
+  expiresAt      DateTime? @map("expires_at") @db.Timestamptz
+  maxUses        Int?      @map("max_uses")
+  usesCount      Int       @default(0) @map("uses_count")
+  isRevoked      Boolean   @default(false) @map("is_revoked")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([conversationId])
+  @@index([code])
+  @@map("group_invites")
+}
+
+model PinnedMessage {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  messageId      String   @map("message_id") @db.Uuid
+  pinnedBy       String   @map("pinned_by") @db.Uuid
+  pinnedAt       DateTime @default(now()) @map("pinned_at") @db.Timestamptz
+
+  @@unique([conversationId, messageId])
+  @@index([conversationId])
+  @@map("pinned_messages")
+}
+
+model GroupAuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  conversationId String   @map("conversation_id") @db.Uuid
+  actorId        String   @map("actor_id") @db.Uuid
+  action         String   @db.VarChar(50)
+  targetId       String?  @map("target_id") @db.Uuid
+  metadata       Json?
+  timestamp      DateTime @default(now()) @db.Timestamptz
+
+  @@index([conversationId, timestamp(sort: Desc)])
+  @@index([actorId])
+  @@map("group_audit_logs")
+}
+
+model Contact {
+  userId        String   @map("user_id") @db.Uuid
+  contactUserId String   @map("contact_user_id") @db.Uuid
+  nickname      String?  @db.VarChar(100)
+  blocked       Boolean  @default(false)
+  addedAt       DateTime @default(now()) @map("added_at") @db.Timestamptz
+
+  user    User @relation("UserContacts", fields: [userId], references: [id], onDelete: Cascade)
+  contact User @relation("ContactUser", fields: [contactUserId], references: [id], onDelete: Cascade)
+
+  @@id([userId, contactUserId])
+  @@index([userId])
+  @@index([userId, blocked])
+  @@map("contacts")
+}

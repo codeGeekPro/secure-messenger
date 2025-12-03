@@ -1,0 +1,209 @@
+{
+  "dashboard": {
+    "title": "Secure Messenger - Phase 10: Performance Dashboard",
+    "description": "Real-time monitoring for WebSocket, messaging, and infrastructure metrics",
+    "tags": ["phase-10", "performance", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active WebSocket Connections",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "ws_connections_active"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Connections",
+            "format": "short"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Message Fan-Out Latency (p95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(message_fan_out_latency_ms_bucket[5m]))"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Latency (ms)",
+            "format": "ms"
+          }
+        ],
+        "alert": {
+          "threshold": 250
+        }
+      },
+      {
+        "id": 3,
+        "title": "Message Throughput",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(messages_sent_total[5m])",
+            "legendFormat": "Sent"
+          },
+          {
+            "expr": "rate(messages_received_total[5m])",
+            "legendFormat": "Received"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Messages/sec",
+            "format": "short"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Memory Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "memory_usage_bytes / 1024 / 1024"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Memory (MB)",
+            "format": "short"
+          }
+        ],
+        "alert": {
+          "threshold": 1024
+        }
+      },
+      {
+        "id": 5,
+        "title": "CPU Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "cpu_usage_percent"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "CPU %",
+            "format": "percent"
+          }
+        ],
+        "alert": {
+          "threshold": 80
+        }
+      },
+      {
+        "id": 6,
+        "title": "Database Query Duration (p95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(database_query_duration_ms_bucket[5m]))"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Duration (ms)",
+            "format": "ms"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(errors_total[5m])"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Errors/sec",
+            "format": "short"
+          }
+        ],
+        "alert": {
+          "threshold": 0.01
+        }
+      },
+      {
+        "id": 8,
+        "title": "Connection Creation Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(ws_connections_created_total[5m])"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Connections/sec",
+            "format": "short"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Encryption Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(encryption_duration_ms_bucket[5m]))",
+            "legendFormat": "p95"
+          }
+        ],
+        "yaxes": [
+          {
+            "label": "Duration (ms)",
+            "format": "ms"
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Performance Summary",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "ws_connections_active",
+            "legendFormat": "Active Connections"
+          }
+        ]
+      }
+    ],
+    "alerts": [
+      {
+        "name": "HighFanOutLatency",
+        "condition": "histogram_quantile(0.95, rate(message_fan_out_latency_ms_bucket[5m])) > 250",
+        "duration": "5m",
+        "severity": "warning"
+      },
+      {
+        "name": "HighErrorRate",
+        "condition": "rate(errors_total[5m]) > 0.01",
+        "duration": "2m",
+        "severity": "critical"
+      },
+      {
+        "name": "HighMemoryUsage",
+        "condition": "memory_usage_bytes / 1024 / 1024 > 1024",
+        "duration": "5m",
+        "severity": "warning"
+      },
+      {
+        "name": "HighCpuUsage",
+        "condition": "cpu_usage_percent > 80",
+        "duration": "5m",
+        "severity": "warning"
+      }
+    ]
+  }
+}
