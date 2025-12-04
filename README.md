@@ -89,6 +89,24 @@ Application de messagerie instantanée moderne avec chiffrement end-to-end, conv
 - [ ] Tests matrice permissions (20+ tests unitaires)
 - [ ] Tests E2E : créer groupe, inviter, promouvoir, retirer, pin
 
+### 🚀 Prochaines Phases
+
+#### Phase 8: Recherche & Synchronisation (3-4 semaines)
+- **Livrables**: Indexation client (MiniSearch), worker recherche, synchronisation état "lu".
+- **DoD**: Recherche full-text < 200ms, statut "lu" synchronisé sur tous les appareils en < 5s.
+
+#### Phase 9: Multi-Appareils (2-3 semaines)
+- **Livrables**: Gestion appareils (lister, révoquer), flux de liaison QR code.
+- **DoD**: Un utilisateur peut être connecté sur 3 appareils simultanément.
+
+#### Phase 10: Performance & Métriques (3-4 semaines)
+- **Livrables**: Dashboard Grafana, tests de charge (k6), optimisations BDD.
+- **DoD**: API p99 < 250ms, 10k connexions WebSocket simultanées.
+
+#### Phase 11: Tests Complets (2–3 semaines)
+- **Livrables**: Tests E2E (Playwright), fuzz crypto, chaos tests basiques.
+- **DoD**: Couverture > 85%, zéro P0/P1 ouverts.
+
 ### Critères d'acceptation Phase 7 (DoD)
 - Matrice permissions testée (tous rôles, toutes actions)
 - Journal d'audit complet (toutes actions trackées)

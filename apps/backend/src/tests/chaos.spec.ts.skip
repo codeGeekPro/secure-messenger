@@ -1,0 +1,204 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import { io, Socket } from 'socket.io-client';
+import { AppModule } from '../app.module';
+
+/**
+ * Tests de chaos basiques pour vérifier la résilience de l'application
+ * face aux défaillances réseau et aux déconnexions
+ */
+describe('Chaos Testing - Network Resilience', () => {
+  let app: INestApplication;
+  let client: Socket;
+  const PORT = 3333; // Port de test différent
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    await app.listen(PORT);
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  afterEach(() => {
+    if (client && client.connected) {
+      client.disconnect();
+    }
+  });
+
+  describe('WebSocket Resilience', () => {
+    it('should handle rapid connect/disconnect cycles', async () => {
+      const cycles = 10;
+      const results: boolean[] = [];
+
+      for (let i = 0; i < cycles; i++) {
+        const socket = io(`http://localhost:${PORT}`, {
+          transports: ['websocket'],
+          reconnection: false,
+        });
+
+        const connected = await new Promise<boolean>((resolve) => {
+          socket.on('connect', () => resolve(true));
+          socket.on('connect_error', () => resolve(false));
+          
+          setTimeout(() => resolve(false), 2000);
+        });
+
+        results.push(connected);
+        socket.disconnect();
+        
+        // Petit délai entre les cycles
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      // Au moins 80% des connexions devraient réussir
+      const successRate = results.filter((r) => r).length / cycles;
+      expect(successRate).toBeGreaterThanOrEqual(0.8);
+    });
+
+    it('should handle abrupt disconnection and reconnection', async () => {
+      client = io(`http://localhost:${PORT}`, {
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 100,
+      });
+
+      // Attendre la connexion initiale
+      await new Promise<void>((resolve) => {
+        client.on('connect', () => resolve());
+      });
+
+      expect(client.connected).toBe(true);
+
+      // Déconnexion brutale (simuler une panne réseau)
+      client.io.engine.close();
+
+      // Attendre un peu
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Vérifier que la reconnexion se fait automatiquement
+      const reconnected = await new Promise<boolean>((resolve) => {
+        client.on('reconnect', () => resolve(true));
+        setTimeout(() => resolve(false), 2000);
+      });
+
+      expect(reconnected).toBe(true);
+    });
+
+    it('should handle multiple simultaneous connections', async () => {
+      const numClients = 20;
+      const clients: Socket[] = [];
+
+      try {
+        // Créer plusieurs connexions simultanées
+        const connectPromises = Array.from({ length: numClients }, () => {
+          const socket = io(`http://localhost:${PORT}`, {
+            transports: ['websocket'],
+            reconnection: false,
+          });
+
+          clients.push(socket);
+
+          return new Promise<boolean>((resolve) => {
+            socket.on('connect', () => resolve(true));
+            socket.on('connect_error', () => resolve(false));
+            setTimeout(() => resolve(false), 3000);
+          });
+        });
+
+        const results = await Promise.all(connectPromises);
+
+        // Au moins 90% des connexions devraient réussir
+        const successRate = results.filter((r) => r).length / numClients;
+        expect(successRate).toBeGreaterThanOrEqual(0.9);
+      } finally {
+        // Nettoyer toutes les connexions
+        clients.forEach((socket) => {
+          if (socket.connected) {
+            socket.disconnect();
+          }
+        });
+      }
+    });
+  });
+
+  describe('Error Handling', () => {
+    beforeEach(async () => {
+      client = io(`http://localhost:${PORT}`, {
+        transports: ['websocket'],
+        reconnection: false,
+      });
+
+      await new Promise<void>((resolve) => {
+        client.on('connect', () => resolve());
+      });
+    });
+
+    it('should handle malformed events gracefully', async () => {
+      let errorReceived = false;
+      client.on('error', () => {
+        errorReceived = true;
+      });
+
+      // Envoyer des événements malformés
+      const malformedData = [
+        null,
+        undefined,
+        '',
+        { incomplete: true },
+        'just a string',
+        12345,
+        [],
+      ];
+
+      for (const data of malformedData) {
+        client.emit('test-event', data);
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Le client devrait toujours être connecté malgré les données malformées
+      expect(client.connected).toBe(true);
+    });
+
+    it('should handle rapid event subscriptions', async () => {
+      // S'abonner à de nombreux événements rapidement
+      for (let i = 0; i < 100; i++) {
+        client.on(`event-${i}`, () => {
+          // Handler vide
+        });
+      }
+
+      // Le client devrait toujours fonctionner
+      expect(client.connected).toBe(true);
+
+      // La communication devrait toujours fonctionner
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(client.connected).toBe(true);
+    });
+
+    it('should maintain connection stability over time', async () => {
+      const checks: boolean[] = [];
+      const duration = 3000; // 3 secondes
+      const checkInterval = 500; // Vérifier toutes les 500ms
+
+      const intervalId = setInterval(() => {
+        checks.push(client.connected);
+      }, checkInterval);
+
+      await new Promise((resolve) => setTimeout(resolve, duration));
+      clearInterval(intervalId);
+
+      // La connexion devrait être stable (au moins 90% du temps)
+      const stableRate = checks.filter((c) => c).length / checks.length;
+      expect(stableRate).toBeGreaterThanOrEqual(0.9);
+    });
+  });
+});
