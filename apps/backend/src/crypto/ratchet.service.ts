@@ -217,8 +217,8 @@ export class RatchetService {
     const nonceBytes = this.crypto.fromBase64(message.nonce);
     const plaintextBytes = this.crypto.decrypt(
       ciphertextBytes,
-      messageKey,
-      nonceBytes
+      nonceBytes,
+      messageKey
     );
 
     // Nettoyer message key

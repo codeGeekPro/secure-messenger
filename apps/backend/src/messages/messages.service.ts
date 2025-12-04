@@ -46,7 +46,19 @@ export class MessagesService {
       await this.ephemeralService.setEphemeral(message.id, dto.ttlSeconds);
     }
 
-    return message;
+    return this.prisma.message.findUnique({
+      where: { id: message.id },
+      include: {
+        sender: {
+          select: {
+            id: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
+        receipts: true,
+      },
+    });
   }
 
   /**
@@ -98,7 +110,6 @@ export class MessagesService {
             avatarUrl: true,
           },
         },
-        receipts: true,
       },
     });
   }

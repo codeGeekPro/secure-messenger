@@ -72,13 +72,14 @@ export function hkdf(
   info: string,
   length: number
 ): Uint8Array {
-  const prk = sodium.crypto_auth_hmacsha256(inputKeyMaterial, salt);
+  const prk = sodium.crypto_generichash(32, inputKeyMaterial, salt);
   const infoBuffer = sodium.from_string(info);
-  const okm = sodium.crypto_auth_hmacsha256(
+  const okm = sodium.crypto_generichash(
+    length,
     new Uint8Array([...prk, ...infoBuffer, 1]),
     salt
   );
-  return okm.slice(0, length);
+  return okm;
 }
 
 /**

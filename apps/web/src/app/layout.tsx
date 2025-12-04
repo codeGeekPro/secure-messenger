@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   description: 'End-to-end encrypted messaging platform',
   manifest: '/manifest.json',
   themeColor: '#0ea5e9',
+  icons: {
+    apple: '/icon-192.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -19,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="fr" suppressHydrationWarning>
+    <html lang="en">
       <head>
         <link rel="icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" href="/icon-192.png" />

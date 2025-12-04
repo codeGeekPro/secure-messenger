@@ -6,9 +6,17 @@ import { EphemeralService } from './ephemeral.service';
 import { SearchService } from './search.service';
 import { SearchController } from './search.controller';
 import { PrismaService } from '../common/prisma.service';
+import { DevicesModule } from '../devices/devices.module'; // Importer DevicesModule
 
 @Module({
-  providers: [MessagesGateway, MessagesService, EphemeralService, SearchService, PrismaService],
+  imports: [DevicesModule], // Ajouter DevicesModule aux imports
+  providers: [
+    MessagesGateway,
+    MessagesService,
+    EphemeralService,
+    SearchService,
+    PrismaService,
+  ],
   controllers: [MessagesController, SearchController],
   exports: [MessagesService, EphemeralService, SearchService],
 })

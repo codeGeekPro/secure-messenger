@@ -162,8 +162,9 @@ export function MembersList({
             {/* Actions menu */}
             {canManage && (
               <div className="relative">
-                <button
-                  onClick={(e) => {
+                <ActionMenuButton
+                  title="Ouvrir le menu d'actions"
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
                     e.stopPropagation();
                     toggleMenu(member.id);
                   }}
@@ -171,7 +172,7 @@ export function MembersList({
                   className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg disabled:opacity-50"
                 >
                   <MoreVertical className="w-4 h-4" />
-                </button>
+                </ActionMenuButton>
                 
                 {activeMenu === member.id && (
                   <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-10">
@@ -253,8 +254,34 @@ function RoleBadge({ role }: { role: MemberRole }) {
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${className}`}
     >
-      <Icon className="w-3 h-3" />
-      {label}
+// ActionMenuButton component
+interface ActionMenuButtonProps {
+  title: string;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled: boolean;
+  className?: string;
+  children: React.ReactNode;
+}
+
+const ActionMenuButton: React.FC<ActionMenuButtonProps> = ({
+  title,
+  onClick,
+  disabled,
+  className,
+  children,
+}) => (
+  <button
+    title={title}
+    onClick={onClick}
+    disabled={disabled}
+    className={className}
+  >
+    {children}
+  </button>
+);
+
+// Role badge component
+function RoleBadge({ role }: { role: MemberRole }) {
     </span>
   );
 }

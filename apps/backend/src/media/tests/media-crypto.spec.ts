@@ -38,7 +38,7 @@ describe('Media encryption (ephemeral keys) - unit', () => {
     // Déchiffrement
     const reassembled: number[] = [];
     for (let i = 0; i < chunks.length; i++) {
-      const pt = crypto.decrypt(ciphertexts[i], fileKey, crypto.fromBase64(nonces[i]));
+      const pt = crypto.decrypt(ciphertexts[i], crypto.fromBase64(nonces[i]), fileKey);
       // Utiliser Array.prototype.push.apply ou concat au lieu du spread pour éviter stack overflow
       for (let j = 0; j < pt.length; j++) {
         reassembled.push(pt[j]);

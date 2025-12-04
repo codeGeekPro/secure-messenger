@@ -142,8 +142,8 @@ export class CryptoService {
    */
   decrypt(
     ciphertext: Uint8Array,
-    key: Uint8Array,
-    nonce: Uint8Array
+    nonce: Uint8Array,
+    key: Uint8Array
   ): Uint8Array {
     return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
       null,

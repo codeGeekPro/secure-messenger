@@ -91,6 +91,7 @@ export function CreateGroupModal({
           
           <button
             onClick={onClose}
+            title="Fermer"
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
           >
             <X className="w-5 h-5" />

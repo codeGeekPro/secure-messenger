@@ -144,6 +144,7 @@ export default function ActiveCallScreen({
         {/* Mute/Unmute */}
         <button
           onClick={handleToggleMute}
+          title={isMuted ? 'Unmute' : 'Mute'}
           className={`p-4 rounded-full ${
             isMuted ? 'bg-red-600' : 'bg-gray-700'
           } hover:bg-gray-600 transition`}
@@ -159,10 +160,10 @@ export default function ActiveCallScreen({
             </svg>
           )}
         </button>
-
         {/* Video on/off */}
         <button
           onClick={handleToggleVideo}
+          title={isVideoOff ? 'Turn on video' : 'Turn off video'}
           className={`p-4 rounded-full ${
             isVideoOff ? 'bg-red-600' : 'bg-gray-700'
           } hover:bg-gray-600 transition`}
@@ -171,10 +172,10 @@ export default function ActiveCallScreen({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
         </button>
-
         {/* Partage d'écran */}
         <button
           onClick={handleToggleScreenShare}
+          title={isScreenSharing ? 'Stop screen share' : 'Start screen share'}
           className={`p-4 rounded-full ${
             isScreenSharing ? 'bg-blue-600' : 'bg-gray-700'
           } hover:bg-gray-600 transition`}
@@ -183,10 +184,10 @@ export default function ActiveCallScreen({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
         </button>
-
         {/* Raccrocher */}
         <button
           onClick={handleEndCall}
+          title="End call"
           className="p-4 rounded-full bg-red-600 hover:bg-red-700 transition"
         >
           <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -97,6 +97,7 @@ export function InviteLinkGenerator({
               Expiration
             </label>
             <select
+              aria-label="Expiration"
               value={expiresIn || 'never'}
               onChange={(e) =>
                 setExpiresIn(
@@ -112,13 +113,13 @@ export function InviteLinkGenerator({
               <option value={30 * 24 * 60 * 60 * 1000}>30 jours</option>
             </select>
           </div>
-          
           {/* Max uses */}
           <div>
             <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
               Nombre maximum d'utilisations
             </label>
             <select
+              aria-label="Nombre maximum d'utilisations"
               value={maxUses || 'unlimited'}
               onChange={(e) =>
                 setMaxUses(
