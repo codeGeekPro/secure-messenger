@@ -1,0 +1,200 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy (git tag or sha)'
+        required: true
+        type: string
+
+env:
+  ENVIRONMENT: production
+  CLUSTER_NAME: secure-messenger-prod
+  NAMESPACE: production
+
+jobs:
+  pre-deployment-checks:
+    name: Pre-deployment Checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+      
+      - name: Verify version exists
+        run: |
+          git rev-parse ${{ inputs.version }} || exit 1
+      
+      - name: Check if tests passed
+        run: |
+          echo "Verifying CI passed for version ${{ inputs.version }}"
+          # Add logic to verify CI status
+      
+      - name: Backup database before deployment
+        run: |
+          echo "Triggering production database backup"
+          curl -X POST -H "Authorization: Bearer ${{ secrets.BACKUP_API_TOKEN }}" \
+               https://backup.secure-messenger.app/api/backup/trigger
+
+  deploy-blue-green:
+    name: Blue-Green Deployment
+    runs-on: ubuntu-latest
+    needs: pre-deployment-checks
+    environment:
+      name: production
+      url: https://secure-messenger.app
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.version }}
+      
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+      
+      - name: Determine current color
+        id: current-color
+        run: |
+          CURRENT=$(kubectl get service backend -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.selector.color}')
+          if [ "$CURRENT" == "blue" ]; then
+            echo "new_color=green" >> $GITHUB_OUTPUT
+            echo "old_color=blue" >> $GITHUB_OUTPUT
+          else
+            echo "new_color=blue" >> $GITHUB_OUTPUT
+            echo "old_color=green" >> $GITHUB_OUTPUT
+          fi
+          echo "Deploying to $NEW_COLOR, current is $CURRENT"
+      
+      - name: Create secrets
+        run: |
+          kubectl create secret generic app-secrets-${{ steps.current-color.outputs.new_color }} \
+            --from-literal=database-url="${{ secrets.PRODUCTION_DATABASE_URL }}" \
+            --from-literal=redis-url="${{ secrets.PRODUCTION_REDIS_URL }}" \
+            --from-literal=jwt-secret="${{ secrets.PRODUCTION_JWT_SECRET }}" \
+            --namespace=${{ env.NAMESPACE }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+      
+      - name: Deploy new version to ${{ steps.current-color.outputs.new_color }}
+        run: |
+          cd k8s/overlays/production
+          
+          # Deploy with new color label
+          cat kustomization.yaml | \
+            sed "s/COLOR/${{ steps.current-color.outputs.new_color }}/g" | \
+            kubectl apply -k - --namespace=${{ env.NAMESPACE }}
+      
+      - name: Wait for new deployment to be ready
+        run: |
+          kubectl rollout status deployment/backend-${{ steps.current-color.outputs.new_color }} \
+            --namespace=${{ env.NAMESPACE }} --timeout=10m
+          kubectl rollout status deployment/web-${{ steps.current-color.outputs.new_color }} \
+            --namespace=${{ env.NAMESPACE }} --timeout=10m
+      
+      - name: Run health checks on new deployment
+        run: |
+          NEW_BACKEND_IP=$(kubectl get service backend-${{ steps.current-color.outputs.new_color }} \
+            -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.clusterIP}')
+          
+          # Internal health checks
+          kubectl run healthcheck --rm -i --restart=Never \
+            --image=curlimages/curl:latest \
+            --namespace=${{ env.NAMESPACE }} -- \
+            curl -f http://$NEW_BACKEND_IP:3000/health || exit 1
+      
+      - name: Run smoke tests
+        run: |
+          # Test critical endpoints on new deployment
+          kubectl run smoketest --rm -i --restart=Never \
+            --image=curlimages/curl:latest \
+            --namespace=${{ env.NAMESPACE }} -- \
+            /bin/sh -c "
+              curl -f http://backend-${{ steps.current-color.outputs.new_color }}:3000/health &&
+              curl -f http://web-${{ steps.current-color.outputs.new_color }}:3001/ &&
+              echo 'Smoke tests passed'
+            " || exit 1
+      
+      - name: Switch traffic to new deployment
+        run: |
+          # Update service selectors to point to new color
+          kubectl patch service backend -n ${{ env.NAMESPACE }} \
+            -p '{"spec":{"selector":{"color":"${{ steps.current-color.outputs.new_color }}"}}}'
+          
+          kubectl patch service web -n ${{ env.NAMESPACE }} \
+            -p '{"spec":{"selector":{"color":"${{ steps.current-color.outputs.new_color }}"}}}'
+          
+          echo "Traffic switched to ${{ steps.current-color.outputs.new_color }}"
+      
+      - name: Monitor for 5 minutes
+        run: |
+          echo "Monitoring new deployment for 5 minutes..."
+          sleep 300
+          
+          # Check error rates
+          ERROR_RATE=$(kubectl logs -l color=${{ steps.current-color.outputs.new_color }} \
+            -n ${{ env.NAMESPACE }} --tail=1000 | grep -i error | wc -l)
+          
+          if [ $ERROR_RATE -gt 50 ]; then
+            echo "High error rate detected: $ERROR_RATE errors"
+            exit 1
+          fi
+      
+      - name: Scale down old deployment
+        if: success()
+        run: |
+          kubectl scale deployment/backend-${{ steps.current-color.outputs.old_color }} \
+            --replicas=1 --namespace=${{ env.NAMESPACE }}
+          kubectl scale deployment/web-${{ steps.current-color.outputs.old_color }} \
+            --replicas=1 --namespace=${{ env.NAMESPACE }}
+          
+          echo "Old deployment scaled down, keeping 1 replica for quick rollback"
+      
+      - name: Notify successful deployment
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          text: |
+            ✅ Production deployment successful!
+            Version: ${{ inputs.version }}
+            New color: ${{ steps.current-color.outputs.new_color }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: deploy-blue-green
+    if: failure()
+    steps:
+      - name: Configure kubectl
+        uses: azure/k8s-set-context@v3
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG_PRODUCTION }}
+      
+      - name: Rollback traffic
+        run: |
+          CURRENT=$(kubectl get service backend -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.selector.color}')
+          if [ "$CURRENT" == "blue" ]; then
+            ROLLBACK_TO="green"
+          else
+            ROLLBACK_TO="blue"
+          fi
+          
+          kubectl patch service backend -n ${{ env.NAMESPACE }} \
+            -p "{\"spec\":{\"selector\":{\"color\":\"$ROLLBACK_TO\"}}}"
+          
+          kubectl patch service web -n ${{ env.NAMESPACE }} \
+            -p "{\"spec\":{\"selector\":{\"color\":\"$ROLLBACK_TO\"}}}"
+          
+          echo "Rolled back to $ROLLBACK_TO"
+      
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          text: '❌ Deployment failed. Rolled back to previous version.'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

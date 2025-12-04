@@ -1,0 +1,82 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  labels:
+    app: secure-messenger
+    component: backup
+spec:
+  schedule: "*/5 * * * *"  # Every 5 minutes (RPO ≤ 5 min)
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: secure-messenger
+            component: backup
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: backup-sa
+          
+          containers:
+          - name: backup
+            image: postgres:16-alpine
+            command:
+            - /bin/sh
+            - -c
+            - |
+              apk add --no-cache aws-cli gpg curl jq
+              /scripts/backup.sh
+            
+            env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: database-url
+            - name: S3_BUCKET
+              value: "s3://secure-messenger-backups"
+            - name: BACKUP_DIR
+              value: "/backups"
+            - name: RETENTION_DAYS
+              value: "30"
+            - name: ENCRYPTION_KEY
+              value: "/secrets/backup-encryption-key"
+            - name: SLACK_WEBHOOK
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: slack-webhook
+                  optional: true
+            
+            volumeMounts:
+            - name: backup-scripts
+              mountPath: /scripts
+            - name: backup-volume
+              mountPath: /backups
+            - name: backup-secrets
+              mountPath: /secrets
+              readOnly: true
+            
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+          
+          volumes:
+          - name: backup-scripts
+            configMap:
+              name: backup-scripts
+              defaultMode: 0755
+          - name: backup-volume
+            persistentVolumeClaim:
+              claimName: backup-pvc
+          - name: backup-secrets
+            secret:
+              secretName: backup-secrets

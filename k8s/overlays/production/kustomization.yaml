@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: production
+
+bases:
+- ../../base
+
+namePrefix: prod-
+
+commonLabels:
+  environment: production
+
+patches:
+- patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 5
+  target:
+    kind: Deployment
+    name: backend
+- patch: |-
+    - op: replace
+      path: /spec/replicas
+      value: 3
+  target:
+    kind: Deployment
+    name: web
+- patch: |-
+    - op: add
+      path: /metadata/labels/color
+      value: COLOR
+  target:
+    kind: Deployment
+    labelSelector: "component in (backend,web)"
+- patch: |-
+    - op: add
+      path: /spec/selector/color
+      value: COLOR
+  target:
+    kind: Service
+    labelSelector: "component in (backend,web)"
+
+images:
+- name: ghcr.io/codegeekpro/secure-messenger/backend
+  newTag: latest
+- name: ghcr.io/codegeekpro/secure-messenger/web
+  newTag: latest

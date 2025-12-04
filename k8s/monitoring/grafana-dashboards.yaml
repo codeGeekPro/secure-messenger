@@ -1,0 +1,279 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  labels:
+    app: grafana
+data:
+  application-overview.json: |
+    {
+      "dashboard": {
+        "title": "Secure Messenger - Application Overview",
+        "uid": "secure-messenger-app",
+        "timezone": "browser",
+        "refresh": "30s",
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "panels": [
+          {
+            "id": 1,
+            "title": "Request Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_total[5m])) by (job)",
+                "legendFormat": "{{job}}"
+              }
+            ],
+            "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8}
+          },
+          {
+            "id": 2,
+            "title": "Error Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) by (job)",
+                "legendFormat": "{{job}}"
+              }
+            ],
+            "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8}
+          },
+          {
+            "id": 3,
+            "title": "Response Time (P95)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (job, le))",
+                "legendFormat": "{{job}}"
+              }
+            ],
+            "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8}
+          },
+          {
+            "id": 4,
+            "title": "Active WebSocket Connections",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(websocket_connections_active)",
+                "legendFormat": "Active Connections"
+              }
+            ],
+            "gridPos": {"x": 12, "y": 8, "w": 6, "h": 4}
+          },
+          {
+            "id": 5,
+            "title": "Messages Sent (Rate)",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "sum(rate(messages_sent_total[5m]))",
+                "legendFormat": "Messages/sec"
+              }
+            ],
+            "gridPos": {"x": 18, "y": 8, "w": 6, "h": 4}
+          },
+          {
+            "id": 6,
+            "title": "CPU Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(process_cpu_seconds_total[5m])",
+                "legendFormat": "{{pod}}"
+              }
+            ],
+            "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8}
+          },
+          {
+            "id": 7,
+            "title": "Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "process_resident_memory_bytes / 1024 / 1024",
+                "legendFormat": "{{pod}}"
+              }
+            ],
+            "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8}
+          },
+          {
+            "id": 8,
+            "title": "Database Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "pg_stat_database_numbackends",
+                "legendFormat": "Active Connections"
+              }
+            ],
+            "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8}
+          },
+          {
+            "id": 9,
+            "title": "Redis Operations",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(redis_commands_processed_total[5m])",
+                "legendFormat": "Ops/sec"
+              }
+            ],
+            "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8}
+          },
+          {
+            "id": 10,
+            "title": "Pod Status",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "kube_pod_status_phase{namespace=\"production\"}",
+                "format": "table"
+              }
+            ],
+            "gridPos": {"x": 0, "y": 32, "w": 24, "h": 8}
+          }
+        ]
+      }
+    }
+  
+  rto-rpo-dashboard.json: |
+    {
+      "dashboard": {
+        "title": "Secure Messenger - RTO/RPO Monitoring",
+        "uid": "secure-messenger-rto-rpo",
+        "timezone": "browser",
+        "refresh": "1m",
+        "time": {
+          "from": "now-24h",
+          "to": "now"
+        },
+        "panels": [
+          {
+            "id": 1,
+            "title": "Last Successful Backup",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "(time() - backup_last_success_timestamp) / 60",
+                "legendFormat": "Minutes Since Last Backup"
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "red"}
+              ]
+            },
+            "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4}
+          },
+          {
+            "id": 2,
+            "title": "Backup Duration",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "backup_duration_seconds",
+                "legendFormat": "Duration (seconds)"
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 300, "color": "red"}
+              ]
+            },
+            "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4}
+          },
+          {
+            "id": 3,
+            "title": "RPO Status (Target: ≤5 min)",
+            "type": "gauge",
+            "targets": [
+              {
+                "expr": "(time() - backup_last_success_timestamp) / 60",
+                "legendFormat": "Current RPO"
+              }
+            ],
+            "min": 0,
+            "max": 10,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 6, "color": "red"}
+              ]
+            },
+            "gridPos": {"x": 12, "y": 0, "w": 6, "h": 8}
+          },
+          {
+            "id": 4,
+            "title": "Application Uptime",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "avg(up{job=~\"backend|web\"}) * 100",
+                "legendFormat": "Uptime %"
+              }
+            ],
+            "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4}
+          },
+          {
+            "id": 5,
+            "title": "Recovery Time Estimate",
+            "type": "stat",
+            "targets": [
+              {
+                "expr": "avg_over_time(restore_duration_seconds[24h]) / 60",
+                "legendFormat": "Avg Restore Time (min)"
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 30, "color": "red"}
+              ]
+            },
+            "gridPos": {"x": 18, "y": 4, "w": 6, "h": 4}
+          },
+          {
+            "id": 6,
+            "title": "Backup History",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "backup_duration_seconds",
+                "legendFormat": "Duration"
+              }
+            ],
+            "gridPos": {"x": 0, "y": 8, "w": 18, "h": 8}
+          },
+          {
+            "id": 7,
+            "title": "Downtime Events (Last 24h)",
+            "type": "table",
+            "targets": [
+              {
+                "expr": "changes(up{job=~\"backend|web\"}[24h]) > 0",
+                "format": "table"
+              }
+            ],
+            "gridPos": {"x": 0, "y": 16, "w": 24, "h": 8}
+          },
+          {
+            "id": 8,
+            "title": "Alert History",
+            "type": "alertlist",
+            "gridPos": {"x": 0, "y": 24, "w": 24, "h": 8}
+          }
+        ]
+      }
+    }
