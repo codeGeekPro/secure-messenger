@@ -170,12 +170,10 @@ export class MessagesService {
             displayName: true,
             avatarUrl: true,
             devices: {
-              where: { isActive: true },
               select: {
                 id: true,
-                platform: true,
+                type: true,
                 identityKey: true,
-                pushToken: true,
               },
             },
           },
@@ -187,10 +185,10 @@ export class MessagesService {
       userId: p.userId,
       role: p.role,
       user: {
-        id: p.user.id,
-        displayName: p.user.displayName,
-        avatarUrl: p.user.avatarUrl,
-        devices: p.user.devices,
+        id: p.user?.id,
+        displayName: p.user?.displayName,
+        avatarUrl: p.user?.avatarUrl,
+        devices: p.user?.devices,
       },
     }));
   }

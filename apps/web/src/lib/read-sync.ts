@@ -147,7 +147,7 @@ export class ReadSyncService {
         conversationId
       );
 
-      return Buffer.from(ciphertext, 'base64');
+      return Buffer.from(ciphertext);
     } catch (error) {
       console.error('[ReadSyncService] Encryption failed:', error);
       throw error;
@@ -169,7 +169,7 @@ export class ReadSyncService {
 
     try {
       const plaintext = await this.cryptoStore.decryptMessage(
-        ciphertext.toString('base64'),
+        new Uint8Array(ciphertext),
         conversationId
       );
 

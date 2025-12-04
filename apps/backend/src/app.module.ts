@@ -10,6 +10,7 @@ import { CallsModule } from './calls/calls.module';
 import { ReactionsModule } from './reactions/reactions.module';
 import { GroupsModule } from './groups/groups.module';
 import { DevicesModule } from './devices/devices.module';
+import { AppController } from './app.controller';
 
 @Module({
   imports: [

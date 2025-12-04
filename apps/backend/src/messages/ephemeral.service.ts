@@ -96,7 +96,7 @@ export class EphemeralService {
     for (const message of ephemeralMessages) {
       const remainingTtl = Math.max(
         0,
-        Math.floor((message.expiresAt.getTime() - Date.now()) / 1000)
+        Math.floor(((message.expiresAt || new Date()).getTime() - Date.now()) / 1000)
       );
 
       if (remainingTtl > 0) {

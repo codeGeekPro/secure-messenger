@@ -1,8 +1,5 @@
 import { Module } from '@nestjs/common';
 import { RedisService } from '../common/services/redis.service';
-import { CallsGateway } from './calls.gateway';
-import { CallsService } from './calls.service';
-import { PrismaService } from '../common/prisma.service';
 
 /**
  * Redis Pub/Sub adapter pour distribuer les événements WebSocket entre nœuds
@@ -44,12 +41,19 @@ export class RedisAdapter {
   ): () => Promise<void> {
     const subClient = this.redisService.getClient();
 
-    subClient.subscribe(channel, (message) => {
-      try {
-        const payload = JSON.parse(message);
-        callback(payload);
-      } catch (error) {
-        console.error(`[RedisAdapter] Failed to parse message from ${channel}:`, error);
+    subClient.subscribe(channel, (err, count) => {
+      // err will be null on success, count is number of channels subscribed
+      // We need to listen for messages separately
+    });
+
+    subClient.on('message', (ch: string, message: string) => {
+      if (ch === channel) {
+        try {
+          const payload = JSON.parse(message || '{}');
+          callback(payload);
+        } catch (error) {
+          console.error(`[RedisAdapter] Failed to parse message from ${channel}:`, error);
+        }
       }
     });
 

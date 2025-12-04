@@ -61,7 +61,7 @@ export class MessagesGateway
       if (!this.userSockets.has(user.id)) {
         this.userSockets.set(user.id, new Set());
       }
-      this.userSockets.get(user.id).add(client.id);
+      this.userSockets.get(user.id)!.add(client.id);
 
       // Notifier présence online
       this.broadcastPresence(user.id, 'online');
@@ -116,7 +116,7 @@ export class MessagesGateway
     try {
       const message = await this.messagesService.createMessage({
         conversationId: payload.conversationId,
-        senderId: client.userId,
+        senderId: client.userId || '',
         senderDeviceId: client.deviceId,
         ciphertext: Buffer.from(payload.ciphertext, 'base64'),
         type: payload.type as any,
@@ -238,14 +238,14 @@ export class MessagesGateway
   ) {
     await this.messagesService.updateReceipt(
       payload.messageId,
-      client.userId,
-      client.deviceId,
+      client.userId || '',
+      client.deviceId || '',
       'delivered'
     );
 
     // Notifier expéditeur
     const message = await this.messagesService.getMessage(payload.messageId);
-    const senderSockets = this.userSockets.get(message.senderId);
+    const senderSockets = message ? this.userSockets.get(message.senderId) : undefined;
 
     if (senderSockets) {
       senderSockets.forEach((socketId) => {
@@ -269,14 +269,14 @@ export class MessagesGateway
   ) {
     await this.messagesService.updateReceipt(
       payload.messageId,
-      client.userId,
-      client.deviceId,
+      client.userId || '',
+      client.deviceId || '',
       'read'
     );
 
     // Notifier expéditeur
     const message = await this.messagesService.getMessage(payload.messageId);
-    const senderSockets = this.userSockets.get(message.senderId);
+    const senderSockets = message ? this.userSockets.get(message.senderId) : undefined;
 
     if (senderSockets) {
       senderSockets.forEach((socketId) => {

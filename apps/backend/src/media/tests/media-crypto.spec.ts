@@ -39,7 +39,10 @@ describe('Media encryption (ephemeral keys) - unit', () => {
     const reassembled: number[] = [];
     for (let i = 0; i < chunks.length; i++) {
       const pt = crypto.decrypt(ciphertexts[i], fileKey, crypto.fromBase64(nonces[i]));
-      reassembled.push(...Array.from(pt));
+      // Utiliser Array.prototype.push.apply ou concat au lieu du spread pour éviter stack overflow
+      for (let j = 0; j < pt.length; j++) {
+        reassembled.push(pt[j]);
+      }
     }
 
     expect(Buffer.from(reassembled)).toEqual(Buffer.from(file));

@@ -194,8 +194,8 @@ interface InviteItemProps {
 }
 
 function InviteItem({ invite, onCopy, onRevoke, isCopied }: InviteItemProps) {
-  const isExpired = invite.expiresAt && invite.expiresAt < new Date();
-  const isMaxedOut = invite.maxUses && invite.usesCount >= invite.maxUses;
+  const isExpired = !!(invite.expiresAt && invite.expiresAt < new Date());
+  const isMaxedOut = !!(invite.maxUses && invite.usesCount >= invite.maxUses);
   
   return (
     <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">

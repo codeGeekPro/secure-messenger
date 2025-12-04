@@ -33,7 +33,7 @@ export class ClientSearchIndex {
   /**
    * Ajoute un message à l'index après déchiffrement
    */
-  addMessage(
+  async addMessage(
     id: string,
     conversationId: string,
     senderId: string,
@@ -43,7 +43,7 @@ export class ClientSearchIndex {
     type: 'text' | 'media' | 'file'
   ) {
     try {
-      const plaintext = decrypt(ciphertext, sharedKey);
+      const plaintext = await decrypt(ciphertext, sharedKey);
       
       const indexed: IndexedMessage = {
         id,

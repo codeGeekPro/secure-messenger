@@ -70,9 +70,30 @@ export class CryptoService {
   }
 
   /**
+   * Convertit une clé publique Ed25519 en Curve25519
+   */
+  convertPublicKeyToCurve25519(ed25519PublicKey: Uint8Array): Uint8Array {
+    return sodium.crypto_sign_ed25519_pk_to_curve25519(ed25519PublicKey);
+  }
+
+  /**
+   * Convertit une clé privée Ed25519 en Curve25519
+   */
+  convertPrivateKeyToCurve25519(ed25519PrivateKey: Uint8Array): Uint8Array {
+    return sodium.crypto_sign_ed25519_sk_to_curve25519(ed25519PrivateKey);
+  }
+
+  /**
    * Calcule ECDH (Diffie-Hellman sur Curve25519)
    */
   ecdh(privateKey: Uint8Array, publicKey: Uint8Array): Uint8Array {
+    // Ensure keys are the correct length for Curve25519 (32 bytes)
+    if (privateKey.length !== 32) {
+      throw new Error(`Invalid private key length: ${privateKey.length}, expected 32`);
+    }
+    if (publicKey.length !== 32) {
+      throw new Error(`Invalid public key length: ${publicKey.length}, expected 32`);
+    }
     return sodium.crypto_scalarmult(privateKey, publicKey);
   }
 
@@ -85,13 +106,12 @@ export class CryptoService {
     info: string,
     length: number
   ): Uint8Array {
-    const prk = sodium.crypto_auth_hmacsha256(inputKeyMaterial, salt);
+    // Use crypto_generichash as an alternative to HMAC-SHA256 for key derivation
+    const prk = sodium.crypto_generichash(32, inputKeyMaterial, salt);
     const infoBuffer = sodium.from_string(info);
-    const okm = sodium.crypto_auth_hmacsha256(
-      new Uint8Array([...prk, ...infoBuffer, 1]),
-      salt
-    );
-    return okm.slice(0, length);
+    const combined = new Uint8Array([...prk, ...infoBuffer, 1]);
+    const okm = sodium.crypto_generichash(length, combined, salt);
+    return okm;
   }
 
   /**

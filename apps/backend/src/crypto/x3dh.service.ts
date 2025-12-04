@@ -102,11 +102,15 @@ export class X3dhService {
     const bobIdPub = this.crypto.fromBase64(bobBundle.identityKey);
     const bobSpkPub = this.crypto.fromBase64(bobBundle.signedPreKey.publicKey);
 
+    // Convert Ed25519 identity keys to Curve25519 for ECDH
+    const aliceIdPrivCurve = this.crypto.convertPrivateKeyToCurve25519(aliceIdPriv);
+    const bobIdPubCurve = this.crypto.convertPublicKeyToCurve25519(bobIdPub);
+
     // DH1 = ECDH(IK_A, SPK_B)
-    const dh1 = this.crypto.ecdh(aliceIdPriv, bobSpkPub);
+    const dh1 = this.crypto.ecdh(aliceIdPrivCurve, bobSpkPub);
 
     // DH2 = ECDH(EK_A, IK_B)
-    const dh2 = this.crypto.ecdh(aliceEphPriv, bobIdPub);
+    const dh2 = this.crypto.ecdh(aliceEphPriv, bobIdPubCurve);
 
     // DH3 = ECDH(EK_A, SPK_B)
     const dh3 = this.crypto.ecdh(aliceEphPriv, bobSpkPub);
@@ -126,10 +130,11 @@ export class X3dhService {
       sharedSecret = new Uint8Array([...dh1, ...dh2, ...dh3]);
     }
 
-    // Dériver Root Key avec HKDF
+    // Dériver Root Key avec HKDF (utiliser salt de zéros pour déterminisme)
+    const salt = new Uint8Array(32); // All zeros
     const rootKey = this.crypto.hkdf(
       sharedSecret,
-      this.crypto.randomBytes(32),
+      salt,
       'X3DH_ROOT_KEY',
       32
     );
@@ -161,9 +166,13 @@ export class X3dhService {
     const aliceIdPub = this.crypto.fromBase64(aliceIdentityPublic);
     const aliceEphPub = this.crypto.fromBase64(aliceEphemeralPublic);
 
+    // Convert Ed25519 identity keys to Curve25519 for ECDH
+    const bobIdPrivCurve = this.crypto.convertPrivateKeyToCurve25519(bobIdPriv);
+    const aliceIdPubCurve = this.crypto.convertPublicKeyToCurve25519(aliceIdPub);
+
     // Calcul des mêmes DH que Alice, mais avec clés inversées
-    const dh1 = this.crypto.ecdh(bobSpkPriv, aliceIdPub);
-    const dh2 = this.crypto.ecdh(bobIdPriv, aliceEphPub);
+    const dh1 = this.crypto.ecdh(bobSpkPriv, aliceIdPubCurve);
+    const dh2 = this.crypto.ecdh(bobIdPrivCurve, aliceEphPub);
     const dh3 = this.crypto.ecdh(bobSpkPriv, aliceEphPub);
 
     let sharedSecret: Uint8Array;
@@ -177,9 +186,11 @@ export class X3dhService {
       sharedSecret = new Uint8Array([...dh1, ...dh2, ...dh3]);
     }
 
+    // Dériver Root Key avec HKDF (utiliser salt de zéros pour déterminisme)
+    const salt = new Uint8Array(32); // All zeros
     const rootKey = this.crypto.hkdf(
       sharedSecret,
-      this.crypto.randomBytes(32),
+      salt,
       'X3DH_ROOT_KEY',
       32
     );

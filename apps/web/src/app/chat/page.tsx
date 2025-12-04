@@ -9,13 +9,30 @@ import { encryptFileKeyForDevices } from '@/lib/envelope';
 import { useAuthStore } from '@/stores/auth.store';
 import { useMessagesStore } from '@/stores/messages.store';
 
+interface Conversation {
+  id: string;
+  name?: string;
+  type: string;
+  unreadCount?: number;
+}
+
+interface Message {
+  id: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  type?: string;
+  mediaKeys?: any;
+  decryptedText?: string;
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { sendMessage } = useMessagesStore();
-  const [conversations, setConversations] = useState([]);
-  const [activeConversation, setActiveConversation] = useState(null);
-  const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversation, setActiveConversation] = useState<Conversation | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [messageText, setMessageText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -155,7 +172,7 @@ export default function ChatPage() {
                       Dernier message...
                     </p>
                   </div>
-                  {conv.unreadCount > 0 && (
+                  {(conv.unreadCount ?? 0) > 0 && (
                     <span className="px-2 py-1 text-xs font-semibold text-white bg-primary-600 rounded-full">
                       {conv.unreadCount}
                     </span>

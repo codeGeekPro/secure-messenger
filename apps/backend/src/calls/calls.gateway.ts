@@ -52,7 +52,7 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (!this.userSockets.has(userId)) {
       this.userSockets.set(userId, new Set());
     }
-    this.userSockets.get(userId).add(client.id);
+    this.userSockets.get(userId)!.add(client.id);
 
     console.log(`[Calls] User ${userId} connected (socket ${client.id})`);
   }
@@ -93,7 +93,7 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const session = await this.callsService.initiateCall(
       payload.conversationId,
-      client.userId,
+      client.userId || '',
       payload.recipientId,
       payload.type
     );
@@ -389,7 +389,7 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.userDevices.set(client.userId, new Map());
     }
     this.userDevices
-      .get(client.userId)
+      .get(client.userId)!
       .set(payload.deviceId, client.id);
 
     // Notifier tous les appareils existants
@@ -464,7 +464,7 @@ export class CallsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.userDevices.set(client.userId, new Map());
     }
     this.userDevices
-      .get(client.userId)
+      .get(client.userId)!
       .set(payload.deviceId, client.id);
 
     // Diffuser la mise à jour à tous les appareils

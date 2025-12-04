@@ -38,15 +38,15 @@ export class ReactionsGateway
     if (!this.userSockets.has(userId)) {
       this.userSockets.set(userId, new Set());
     }
-    this.userSockets.get(userId).add(client.id);
+    this.userSockets.get(userId)!.add(client.id);
     console.log(`[ReactionsGateway] User ${userId} connected (${client.id})`);
   }
 
   handleDisconnect(client: Socket) {
     const userId = client.handshake.auth?.userId;
     if (userId && this.userSockets.has(userId)) {
-      this.userSockets.get(userId).delete(client.id);
-      if (this.userSockets.get(userId).size === 0) {
+      this.userSockets.get(userId)!.delete(client.id);
+      if (this.userSockets.get(userId)!.size === 0) {
         this.userSockets.delete(userId);
       }
     }

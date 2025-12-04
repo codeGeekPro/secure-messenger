@@ -1,6 +1,6 @@
 import { Controller, Post, Get, Delete, Body, Param, UseGuards, Request, ForbiddenException } from '@nestjs/common';
 import { DevicesService } from './devices.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { DeviceType } from '@prisma/client';
 
 class RegisterDeviceDto {
@@ -23,7 +23,7 @@ export class DevicesController {
    */
   @UseGuards(JwtAuthGuard)
   @Post('link')
-  async initiateLinking(@Request() req) {
+  async initiateLinking(@Request() req: any) {
     const { userId } = req.user;
     return this.devicesService.initiateLinking(userId);
   }
@@ -53,7 +53,7 @@ export class DevicesController {
    */
   @UseGuards(JwtAuthGuard)
   @Get()
-  async getMyDevices(@Request() req) {
+  async getMyDevices(@Request() req: any) {
     const { userId } = req.user;
     const devices = await this.devicesService.findUserDevices(userId);
     // Don't expose sensitive keys
@@ -85,7 +85,7 @@ export class DevicesController {
    */
   @UseGuards(JwtAuthGuard)
   @Delete(':deviceId')
-  async revokeDevice(@Request() req, @Param('deviceId') deviceId: string) {
+  async revokeDevice(@Request() req: any, @Param('deviceId') deviceId: string) {
     const { userId, deviceId: currentDeviceId } = req.user;
 
     // A device cannot revoke itself via this endpoint.

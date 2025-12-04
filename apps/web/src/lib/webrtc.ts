@@ -223,7 +223,7 @@ export class WebRTCClient {
 
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: 'always' },
+        video: { cursor: 'always' } as any,
         audio: false,
       });
 

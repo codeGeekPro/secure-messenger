@@ -74,9 +74,6 @@ export class InvitationsService {
   async acceptInvite(code: string, userId: string) {
     const invite = await this.prisma.groupInvite.findUnique({
       where: { code },
-      include: {
-        conversation: true,
-      },
     });
 
     if (!invite) {
@@ -135,7 +132,7 @@ export class InvitationsService {
 
     return {
       success: true,
-      conversation: invite.conversation,
+      conversationId: invite.conversationId,
     };
   }
 

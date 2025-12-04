@@ -73,10 +73,11 @@ export class RatchetService {
     const rootKeyBytes = this.crypto.fromBase64(rootKey);
     const sendRatchetKey = this.crypto.generateKeyPair();
 
+    // Le receiver dérive sa receiveChainKey avec le même label que le sender utilise pour sendChainKey
     const receiveChainKey = this.crypto.hkdf(
       rootKeyBytes,
       rootKeyBytes,
-      'RECEIVE_CHAIN',
+      'SEND_CHAIN',  // Même label que l'expéditeur
       32
     );
 
@@ -97,11 +98,31 @@ export class RatchetService {
    * Chiffre un message
    */
   ratchetEncrypt(state: RatchetState, plaintext: string): EncryptedMessage {
+    // Si sendChainKey n'est pas initialisée (tous zéros), faire DH ratchet d'abord
+    const chainKeyBytes = this.crypto.fromBase64(state.sendChainKey);
+    const isZeroKey = chainKeyBytes.every((byte) => byte === 0);
+    
+    if (isZeroKey && state.receiveRatchetKey) {
+      // Besoin de faire DH ratchet pour initialiser sendChainKey
+      const rootKeyBytes = this.crypto.fromBase64(state.rootKey);
+      const sendRatchetPrivBytes = this.crypto.fromBase64(state.sendRatchetKeyPrivate);
+      const remoteRatchetPubBytes = this.crypto.fromBase64(state.receiveRatchetKey);
+      
+      const { newRootKey, newChainKey } = this.dhRatchet(
+        rootKeyBytes,
+        sendRatchetPrivBytes,
+        remoteRatchetPubBytes
+      );
+      
+      state.rootKey = this.crypto.toBase64(newRootKey);
+      state.sendChainKey = this.crypto.toBase64(newChainKey);
+    }
+    
     const plaintextBytes = new TextEncoder().encode(plaintext);
 
     // Dériver message key
-    const chainKeyBytes = this.crypto.fromBase64(state.sendChainKey);
-    const { messageKey, nextChainKey } = this.deriveMessageKey(chainKeyBytes);
+    const sendChainKeyBytes = this.crypto.fromBase64(state.sendChainKey);
+    const { messageKey, nextChainKey } = this.deriveMessageKey(sendChainKeyBytes);
 
     // Chiffrer
     const { ciphertext, nonce } = this.crypto.encrypt(

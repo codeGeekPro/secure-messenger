@@ -62,8 +62,8 @@ export function DevicesManager({
   const handleLinkNew = async () => {
     try {
       setLoading('linking');
-      const data = await onLinkNew();
-      setLinkingData(data);
+      const { linkingSecret, expiresAt } = await onLinkNew();
+      setLinkingData({ secret: linkingSecret, expiresAt });
       setShowLinkModal(true);
     } catch (error) {
       console.error('[DevicesManager] Failed to initiate linking:', error);
