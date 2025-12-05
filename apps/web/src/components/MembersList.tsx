@@ -11,6 +11,32 @@ import {
   Ban,
 } from 'lucide-react';
 
+// ActionMenuButton component
+interface ActionMenuButtonProps {
+  title: string;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled: boolean;
+  className?: string;
+  children: React.ReactNode;
+}
+
+const ActionMenuButton: React.FC<ActionMenuButtonProps> = ({
+  title,
+  onClick,
+  disabled,
+  className,
+  children,
+}) => (
+  <button
+    title={title}
+    onClick={onClick}
+    disabled={disabled}
+    className={className}
+  >
+    {children}
+  </button>
+);
+
 export type MemberRole = 'owner' | 'admin' | 'member';
 
 export interface GroupMember {
@@ -254,34 +280,8 @@ function RoleBadge({ role }: { role: MemberRole }) {
     <span
       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${className}`}
     >
-// ActionMenuButton component
-interface ActionMenuButtonProps {
-  title: string;
-  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  disabled: boolean;
-  className?: string;
-  children: React.ReactNode;
-}
-
-const ActionMenuButton: React.FC<ActionMenuButtonProps> = ({
-  title,
-  onClick,
-  disabled,
-  className,
-  children,
-}) => (
-  <button
-    title={title}
-    onClick={onClick}
-    disabled={disabled}
-    className={className}
-  >
-    {children}
-  </button>
-);
-
-// Role badge component
-function RoleBadge({ role }: { role: MemberRole }) {
+      <Icon className="w-3 h-3" />
+      {label}
     </span>
   );
 }

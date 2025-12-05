@@ -1,0 +1,349 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.12.1'
+
+jobs:
+  # Job 1: Tests et Qualité Code
+  test:
+    name: Tests & Code Quality
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: secure_messenger_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ env.PNPM_VERSION }}
+        run_install: false
+
+    - name: Get pnpm store directory
+      id: pnpm-cache
+      shell: bash
+      run: echo "STORE_PATH=$(pnpm store path)" >> $GITHUB_OUTPUT
+
+    - name: Setup pnpm cache
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+        key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+        restore-keys: |
+          ${{ runner.os }}-pnpm-store-
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Generate Prisma client
+      run: pnpm run --filter=@secure-messenger/backend prisma:generate
+
+    - name: Run type checking
+      run: |
+        pnpm run --filter=@secure-messenger/backend build
+        pnpm run --filter=@secure-messenger/web build
+        pnpm run --filter=@secure-messenger/mobile build
+
+    - name: Run linting
+      run: |
+        pnpm run --filter=@secure-messenger/backend lint
+        pnpm run --filter=@secure-messenger/web lint
+
+    - name: Run unit tests
+      run: |
+        pnpm run --filter=@secure-messenger/backend test
+        pnpm run --filter=@secure-messenger/web test
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/secure_messenger_test
+        REDIS_URL: redis://localhost:6379/1
+        JWT_SECRET: test-jwt-secret
+        NODE_ENV: test
+
+    - name: Run integration tests
+      run: pnpm run --filter=@secure-messenger/backend test:e2e
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/secure_messenger_test
+        REDIS_URL: redis://localhost:6379/1
+        JWT_SECRET: test-jwt-secret
+        NODE_ENV: test
+
+    - name: Generate test coverage
+      run: pnpm run --filter=@secure-messenger/backend test:cov
+      env:
+        DATABASE_URL: postgresql://postgres:postgres@localhost:5432/secure_messenger_test
+        REDIS_URL: redis://localhost:6379/1
+        JWT_SECRET: test-jwt-secret
+        NODE_ENV: test
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./apps/backend/coverage/lcov.info
+        flags: backend
+        name: backend-coverage
+
+  # Job 2: Tests Crypto (spécialisés)
+  crypto-tests:
+    name: Cryptography Tests
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ env.PNPM_VERSION }}
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Run crypto POC tests
+      run: pnpm run --filter=crypto-poc test
+
+    - name: Validate E2E encryption
+      run: |
+        cd poc-crypto
+        npm run test:e2e-encryption
+        npm run test:key-exchange
+        npm run test:double-ratchet
+
+  # Job 3: Security Scanning
+  security:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+
+    - name: Install pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: ${{ env.PNPM_VERSION }}
+
+    - name: Install dependencies
+      run: pnpm install --frozen-lockfile
+
+    - name: Run npm audit
+      run: pnpm audit --audit-level high
+
+    - name: Run CodeQL Analysis
+      uses: github/codeql-action/init@v2
+      with:
+        languages: javascript
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v2
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v2
+
+    - name: Run OWASP ZAP Baseline Scan
+      if: github.ref == 'refs/heads/main'
+      uses: zaproxy/action-baseline@v0.10.0
+      with:
+        target: 'http://localhost:3000'
+        fail_action: true
+
+  # Job 4: Build et Push Docker Images
+  build:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [test, crypto-tests, security]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Login to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta-backend
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}/backend
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Backend
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./apps/backend/Dockerfile
+        push: true
+        tags: ${{ steps.meta-backend.outputs.tags }}
+        labels: ${{ steps.meta-backend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+    - name: Extract metadata - Web
+      id: meta-web
+      uses: docker/metadata-action@v5
+      with:
+        images: ghcr.io/${{ github.repository }}/web
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=sha,prefix={{branch}}-
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Web
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./apps/web/Dockerfile
+        push: true
+        tags: ${{ steps.meta-web.outputs.tags }}
+        labels: ${{ steps.meta-web.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64,linux/arm64
+
+  # Job 5: Déploiement Staging
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+      url: https://staging.secure-messenger.com
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Deploy to staging
+      run: |
+        export KUBECONFIG=kubeconfig
+        kubectl set image deployment/backend-deployment backend=ghcr.io/${{ github.repository }}/backend:develop -n secure-messenger-staging
+        kubectl set image deployment/web-deployment web=ghcr.io/${{ github.repository }}/web:develop -n secure-messenger-staging
+        kubectl rollout status deployment/backend-deployment -n secure-messenger-staging
+        kubectl rollout status deployment/web-deployment -n secure-messenger-staging
+
+    - name: Run smoke tests
+      run: |
+        sleep 30 # Attendre déploiement
+        curl -f https://staging-api.secure-messenger.com/health || exit 1
+        curl -f https://staging.secure-messenger.com || exit 1
+
+  # Job 6: Déploiement Production
+  deploy-production:
+    needs: [build]
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://secure-messenger.com
+    
+    steps:
+    - name: Checkout code
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup kubectl
+      uses: azure/setup-kubectl@v3
+
+    - name: Configure kubectl
+      run: |
+        echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > kubeconfig
+        export KUBECONFIG=kubeconfig
+
+    - name: Deploy to production
+      run: |
+        export KUBECONFIG=kubeconfig
+        kubectl set image deployment/backend-deployment backend=ghcr.io/${{ github.repository }}/backend:main -n secure-messenger-prod
+        kubectl set image deployment/web-deployment web=ghcr.io/${{ github.repository }}/web:main -n secure-messenger-prod
+        kubectl rollout status deployment/backend-deployment -n secure-messenger-prod
+        kubectl rollout status deployment/web-deployment -n secure-messenger-prod
+
+    - name: Run production health checks
+      run: |
+        sleep 60 # Attendre déploiement complet
+        curl -f https://api.secure-messenger.com/health || exit 1
+        curl -f https://secure-messenger.com || exit 1
+
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "✅ Production deployment successful!"
+        # TODO: Envoyer notification Slack/Discord
+
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        echo "❌ Production deployment failed, initiating rollback..."
+        export KUBECONFIG=kubeconfig
+        kubectl rollout undo deployment/backend-deployment -n secure-messenger-prod
+        kubectl rollout undo deployment/web-deployment -n secure-messenger-prod
