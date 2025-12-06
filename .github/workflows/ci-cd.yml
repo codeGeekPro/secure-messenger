@@ -306,12 +306,11 @@ jobs:
   deploy-production:
     needs: [build]
     if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
     environment:
       name: production
       url: https://secure-messenger.com
     
-    steps:
-    - name: Checkout code
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
