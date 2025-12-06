@@ -142,12 +142,10 @@ jobs:
       run: pnpm install --frozen-lockfile
 
     - name: Run crypto POC tests
-      run: pnpm run --filter=crypto-poc test
+      run: pnpm run --filter=secure-messenger-poc-crypto test
 
-    - name: Validate E2E encryption
-      run: |
-        cd poc-crypto
-        npm run test:e2e-encryption
+    - name: Generate coverage for crypto tests
+      run: pnpm run --filter=secure-messenger-poc-crypto test:coverage
         npm run test:key-exchange
         npm run test:double-ratchet
 
