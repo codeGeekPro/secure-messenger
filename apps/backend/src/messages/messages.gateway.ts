@@ -33,7 +33,7 @@ export class MessagesGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {
   @WebSocketServer()
-  server: Server;
+  server!: Server;
 
   // Map userId → Set<socketId> (multi-devices)
   private userSockets = new Map<string, Set<string>>();
@@ -157,14 +157,16 @@ export class MessagesGateway
       }
 
       // Confirmer à l'expéditeur
-      client.emit('message:sent', {
-        id: message.id,
-        conversationId: payload.conversationId,
-        createdAt: message.createdAt,
-      });
+      if (message) {
+        client.emit('message:sent', {
+          id: message.id,
+          conversationId: payload.conversationId,
+          createdAt: message.createdAt,
+        });
+      }
     } catch (error) {
       client.emit('message:error', {
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -245,8 +247,9 @@ export class MessagesGateway
 
     // Notifier expéditeur
     const message = await this.messagesService.getMessage(payload.messageId);
-    const senderSockets = message ? this.userSockets.get(message.senderId) : undefined;
+    if (!message) return; // rien à notifier si le message n'existe plus
 
+    const senderSockets = this.userSockets.get(message.senderId);
     if (senderSockets) {
       senderSockets.forEach((socketId) => {
         this.server.to(socketId).emit('message:receipt', {
@@ -276,8 +279,9 @@ export class MessagesGateway
 
     // Notifier expéditeur
     const message = await this.messagesService.getMessage(payload.messageId);
-    const senderSockets = message ? this.userSockets.get(message.senderId) : undefined;
+    if (!message) return; // rien à notifier si le message n'existe plus
 
+    const senderSockets = this.userSockets.get(message.senderId);
     if (senderSockets) {
       senderSockets.forEach((socketId) => {
         this.server.to(socketId).emit('message:receipt', {
